@@ -1,4 +1,3 @@
-from keep_alive import keep_alive
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -361,5 +360,4 @@ async def on_ready():
     await tree.sync()
     print(f"Logged in as {bot.user}")
 
-keep_alive()
 bot.run(TOKEN)
