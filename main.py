@@ -1,6 +1,5 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
 import asyncio
 import os
 
@@ -11,9 +10,9 @@ intents.members = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
-tree = bot.tree
 
 AVAILABLE_GAMES = ["mafia", "roulette"]
+loaded_game = None  # only one game at a time
 
 
 # ================= LOAD / UNLOAD =================
@@ -21,12 +20,21 @@ AVAILABLE_GAMES = ["mafia", "roulette"]
 @bot.command(name="load")
 @commands.has_permissions(administrator=True)
 async def load_game(ctx, game_name: str):
+    global loaded_game
+
     game_name = game_name.lower()
+
     if game_name not in AVAILABLE_GAMES:
         await ctx.send(f"❌ Unknown game `{game_name}`. Available: {', '.join(f'`{g}`' for g in AVAILABLE_GAMES)}")
         return
+
+    if loaded_game is not None:
+        await ctx.send(f"❌ `{loaded_game}` is already loaded. Use `.unload {loaded_game}` first.")
+        return
+
     try:
         await bot.load_extension(f"games.{game_name}")
+        loaded_game = game_name
         await ctx.send(f"Loaded game: `{game_name}`")
     except commands.ExtensionAlreadyLoaded:
         await ctx.send(f"Game `{game_name}` is already loaded.")
@@ -37,9 +45,13 @@ async def load_game(ctx, game_name: str):
 @bot.command(name="unload")
 @commands.has_permissions(administrator=True)
 async def unload_game(ctx, game_name: str):
+    global loaded_game
+
     game_name = game_name.lower()
+
     try:
         await bot.unload_extension(f"games.{game_name}")
+        loaded_game = None
         await ctx.send(f"Unloaded game: `{game_name}`")
     except commands.ExtensionNotLoaded:
         await ctx.send(f"Game `{game_name}` is not currently loaded.")
@@ -84,18 +96,19 @@ async def help_command(ctx):
     embed.add_field(
         name="🎮 Game Management (Admin Only)",
         value=(
-            "`.load <game>` — Load a game module (e.g. `.load mafia`)\n"
-            "`.unload <game>` — Unload a game module (e.g. `.unload mafia`)\n"
-            f"Available games: {', '.join(f'`{g}`' for g in AVAILABLE_GAMES)}"
+            "`.load <game>` — Load a game (e.g. `.load mafia`)\n"
+            "`.unload <game>` — Unload the current game (e.g. `.unload mafia`)\n"
+            f"Available games: {', '.join(f'`{g}`' for g in AVAILABLE_GAMES)}\n"
+            "⚠️ Only one game can be loaded at a time."
         ),
         inline=False
     )
 
     embed.add_field(
-        name="🃏 Mafia *(load first)*",
+        name="🃏 Mafia *(load first with `.load mafia`)*",
         value=(
-            "`/game start <mafias> <medics>` — Start a Mafia game\n"
-            "`/game join` — Join during the join window\n"
+            "`.game start <mafias> <medics>` — Start a Mafia game\n"
+            "`.mjoin` — Join during the join window\n"
             "`.vote @user` — Vote to eliminate a player\n"
             "`.skip` — Skip your vote (rounds 1 & 2 only)"
         ),
@@ -103,9 +116,9 @@ async def help_command(ctx):
     )
 
     embed.add_field(
-        name="🔫 Russian Roulette *(load first)*",
+        name="🔫 Russian Roulette *(load first with `.load roulette`)*",
         value=(
-            "`/roulette start <bullets>` — Start a Russian Roulette game\n"
+            "`.game start <bullets>` — Start a Russian Roulette game\n"
             "`.rjoin` — Join during the join window"
         ),
         inline=False
@@ -119,7 +132,6 @@ async def help_command(ctx):
 
 @bot.event
 async def on_ready():
-    await tree.sync()
     print(f"Logged in as {bot.user}")
 
 bot.run(TOKEN)
