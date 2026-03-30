@@ -1,6 +1,5 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
 import asyncio
 import random
 
@@ -16,7 +15,6 @@ class RouletteGame:
         self.channel = None
         self.bullets = 0
         self.chambers = 0
-        self.cylinder = []   # list of booleans: True = bullet
 
 
 # ================= COG =================
@@ -25,18 +23,11 @@ class Roulette(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.game = RouletteGame()
-        self.bot.tree.add_command(self.RouletteGroup(self))
-
-    def cog_unload(self):
-        self.bot.tree.remove_command("roulette")
 
     def reset_game(self):
         self.game = RouletteGame()
 
     def calculate_chambers(self, players: int, bullets: int) -> int:
-        # Chambers = at least 2x bullets, scaled up with player count
-        # More players → more chambers so game lasts longer
-        # Minimum 6 chambers, scales up by 2 per extra player beyond 3
         base = max(6, bullets * 2)
         extra = max(0, players - 3) * 2
         return base + extra
@@ -46,42 +37,35 @@ class Roulette(commands.Cog):
         random.shuffle(cylinder)
         return cylinder
 
-    # ---- Slash Command Group ----
+    # ---- Commands ----
 
-    class RouletteGroup(app_commands.Group):
-        def __init__(self, cog):
-            super().__init__(name="roulette", description="Russian Roulette commands")
-            self.cog = cog
+    @commands.command(name="game")
+    @commands.has_permissions(administrator=True)
+    async def game_start(self, ctx, bullets: int):
+        if self.game.running:
+            await ctx.send("A game is already running!")
+            return
 
-        @app_commands.command(name="start", description="Start a Russian Roulette game")
-        async def start(self, interaction: discord.Interaction, bullets: int):
-            cog = self.cog
+        if bullets < 1:
+            await ctx.send("There must be at least 1 bullet.")
+            return
 
-            if cog.game.running:
-                await interaction.response.send_message("A game is already running!", ephemeral=True)
-                return
+        self.game.running = True
+        self.game.bullets = bullets
+        self.game.channel = ctx.channel
 
-            if bullets < 1:
-                await interaction.response.send_message("There must be at least 1 bullet.", ephemeral=True)
-                return
+        self.game.join_message = await ctx.send(
+            f"🔫 A game of **Russian Roulette** is starting! Players joined: 0\nType `.rjoin` to join! (30 seconds)"
+        )
 
-            cog.game.running = True
-            cog.game.bullets = bullets
-            cog.game.channel = interaction.channel
+        await asyncio.sleep(30)
 
-            await interaction.response.send_message("🔫 A game of **Russian Roulette** is starting! Players joined: 0\nType `.rjoin` to join! (30 seconds)")
-            cog.game.join_message = await interaction.original_response()
+        if len(self.game.players) < 2:
+            await self.game.channel.send("Not enough players joined. Game cancelled.")
+            self.reset_game()
+            return
 
-            await asyncio.sleep(30)
-
-            if len(cog.game.players) < 2:
-                await cog.game.channel.send("Not enough players joined. Game cancelled.")
-                cog.reset_game()
-                return
-
-            await cog.start_game()
-
-    # ---- Text Commands ----
+        await self.start_game()
 
     @commands.command(name="rjoin")
     async def rjoin(self, ctx):
@@ -107,7 +91,6 @@ class Roulette(commands.Cog):
         players = self.game.players
         self.game.alive_players = players.copy()
         self.game.chambers = self.calculate_chambers(len(players), self.game.bullets)
-        self.game.cylinder = self.build_cylinder()
 
         await self.game.channel.send(
             f"**A game of Russian Roulette is starting**\n"
@@ -124,9 +107,8 @@ class Roulette(commands.Cog):
         await self.play_round()
 
     async def play_round(self):
-        # Spin the cylinder fresh each full rotation through players
         cylinder = self.build_cylinder()
-        cylinder_index = [0]  # use list so inner scope can mutate it
+        cylinder_index = [0]
 
         player_queue = list(self.game.alive_players)
         random.shuffle(player_queue)
@@ -135,21 +117,15 @@ class Roulette(commands.Cog):
             if player not in self.game.alive_players:
                 continue
 
-            await self.game.channel.send(
-                f"{player.mention} *holds the revolver to their head...*"
-            )
+            await self.game.channel.send(f"{player.mention} *holds the revolver to their head...*")
             await asyncio.sleep(5)
 
-            # Pull the trigger
             fired = cylinder[cylinder_index[0] % len(cylinder)]
             cylinder_index[0] += 1
 
             if fired:
-                # Dead
                 bang = random.choice(["**BANG!** 💥", "**BLAM!** 💥", "**CRACK!** 💥"])
-                await self.game.channel.send(
-                    f"{bang}\n💀 **{player.display_name}** has been eliminated."
-                )
+                await self.game.channel.send(f"{bang}\n💀 **{player.display_name}** has been eliminated.")
                 self.game.alive_players.remove(player)
                 await asyncio.sleep(7)
 
@@ -167,13 +143,11 @@ class Roulette(commands.Cog):
                     return
 
             else:
-                # Survived
                 await self.game.channel.send(
                     f"*Click!* 😮‍💨 **{player.display_name}** survives. The revolver is passed to the next person."
                 )
                 await asyncio.sleep(7)
 
-        # All alive players have gone once — start next round
         await self.game.channel.send(
             f"--- **End of round.** {len(self.game.alive_players)} players remain. The cylinder is spun again... ---"
         )
