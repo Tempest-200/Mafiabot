@@ -1,9 +1,7 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
 import asyncio
 import random
-import os
 from collections import Counter
 
 
@@ -32,13 +30,6 @@ class Mafia(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.game = MafiaGame()
-        # Register the slash command group
-        self.bot.tree.add_command(self.GameGroup(self))
-
-    def cog_unload(self):
-        self.bot.tree.remove_command("game")
-
-    # ---- Util ----
 
     def reset_game(self):
         self.game = MafiaGame()
@@ -55,56 +46,49 @@ class Mafia(commands.Cog):
     def player_list_text(self):
         return "\n".join(f"{i}. {p.display_name}" for i, p in enumerate(self.game.alive_players, 1))
 
-    # ---- Slash Command Group ----
+    # ---- Commands ----
 
-    class GameGroup(app_commands.Group):
-        def __init__(self, cog):
-            super().__init__(name="game", description="Mafia game commands")
-            self.cog = cog
+    @commands.command(name="game")
+    @commands.has_permissions(administrator=True)
+    async def game_start(self, ctx, mafias: int, medics: int):
+        if self.game.running:
+            await ctx.send("A game is already running!")
+            return
 
-        @app_commands.command(name="start", description="Start a mafia game")
-        async def start(self, interaction: discord.Interaction, mafias: int, medics: int):
-            cog = self.cog
-            if cog.game.running:
-                await interaction.response.send_message("A game is already running!", ephemeral=True)
-                return
+        self.game.running = True
+        self.game.players = []
+        self.game.channel = ctx.channel
+        self.game.mafia_count = mafias
+        self.game.medic_count = medics
 
-            cog.game.running = True
-            cog.game.players = []
-            cog.game.channel = interaction.channel
-            cog.game.mafia_count = mafias
-            cog.game.medic_count = medics
+        self.game.join_message = await ctx.send("A game of **Mafia** has started! Players joined: 0\nType `.mjoin` to join! (30 seconds)")
 
-            await interaction.response.send_message("A game of Mafia has started! Players joined: 0")
-            cog.game.join_message = await interaction.original_response()
+        await asyncio.sleep(30)
 
-            await asyncio.sleep(30)
+        if len(self.game.players) < mafias + medics + 1:
+            await self.game.channel.send("Not enough players joined. Game cancelled.")
+            self.reset_game()
+            return
 
-            if len(cog.game.players) < mafias + medics + 1:
-                await cog.game.channel.send("Not enough players joined. Game cancelled.")
-                cog.reset_game()
-                return
+        await self.assign_roles()
 
-            await cog.assign_roles()
+    @commands.command(name="mjoin")
+    async def mjoin(self, ctx):
+        if not self.game.running:
+            await ctx.send("No Mafia game is running.", delete_after=5)
+            return
+        if self.game.join_message is None:
+            await ctx.send("The game is still starting up, try again in a moment!", delete_after=5)
+            return
+        if ctx.author in self.game.players:
+            await ctx.send("You already joined!", delete_after=5)
+            return
 
-        @app_commands.command(name="join", description="Join the current mafia game")
-        async def join(self, interaction: discord.Interaction):
-            cog = self.cog
-            if not cog.game.running:
-                await interaction.response.send_message("A game is not currently running.", ephemeral=True)
-                return
-            if cog.game.join_message is None:
-                await interaction.response.send_message("The game is still starting up, try again in a moment!", ephemeral=True)
-                return
-            if interaction.user in cog.game.players:
-                await interaction.response.send_message("You already joined!", ephemeral=True)
-                return
-
-            cog.game.players.append(interaction.user)
-            await cog.game.join_message.edit(content=f"A game of Mafia has started! Players joined: {len(cog.game.players)}")
-            await interaction.response.send_message("You joined the game!", ephemeral=True)
-
-    # ---- Text Commands ----
+        self.game.players.append(ctx.author)
+        await self.game.join_message.edit(
+            content=f"A game of **Mafia** has started! Players joined: {len(self.game.players)}\nType `.mjoin` to join! (30 seconds)"
+        )
+        await ctx.message.add_reaction("✅")
 
     @commands.command(name="vote")
     async def vote(self, ctx):
