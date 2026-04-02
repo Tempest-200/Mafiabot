@@ -11,7 +11,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-AVAILABLE_GAMES = ["mafia", "roulette"]
+AVAILABLE_GAMES = ["mafia", "roulette", "uno"]
 loaded_game = None  # only one game at a time
 
 
@@ -105,9 +105,9 @@ async def help_command(ctx):
     )
 
     embed.add_field(
-        name="🃏 Mafia *(load first with `.load mafia`)*",
+        name="🃏 Mafia *(`.load mafia` first)*",
         value=(
-            "`.game start <mafias> <medics>` — Start a Mafia game\n"
+            "`.game <mafias> <medics>` — Start a Mafia game (e.g. `.game 2 1`)\n"
             "`.mjoin` — Join during the join window\n"
             "`.vote @user` — Vote to eliminate a player\n"
             "`.skip` — Skip your vote (rounds 1 & 2 only)"
@@ -116,10 +116,24 @@ async def help_command(ctx):
     )
 
     embed.add_field(
-        name="🔫 Russian Roulette *(load first with `.load roulette`)*",
+        name="🔫 Russian Roulette *(`.load roulette` first)*",
         value=(
-            "`.game start <bullets>` — Start a Russian Roulette game\n"
+            "`.game <bullets>` — Start a Russian Roulette game (e.g. `.game 2`)\n"
             "`.rjoin` — Join during the join window"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🎴 Uno *(`.load uno` first)*",
+        value=(
+            "`.game` — Start an Uno game\n"
+            "`.ujoin` — Join during the join window\n"
+            "`.play <color> <value>` — Play a card (e.g. `.play red 5`, `.play blue skip`)\n"
+            "`.play wild <color>` — Play a wild (e.g. `.play wild red`)\n"
+            "`.play wildraw4 <color>` — Play a Wild Draw 4 (e.g. `.play wildraw4 blue`)\n"
+            "`.draw` — Draw a card from the deck\n"
+            "`.hand` — Bot re-sends your current hand via DM"
         ),
         inline=False
     )
