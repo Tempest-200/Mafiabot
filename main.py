@@ -14,6 +14,8 @@ bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 AVAILABLE_GAMES = ["mafia", "roulette", "uno"]
 loaded_game = None  # only one game at a time
 
+OWNER_ID = 1396540448989904926
+
 
 # ================= LOAD / UNLOAD =================
 
@@ -142,10 +144,23 @@ async def help_command(ctx):
     await ctx.send(embed=embed)
 
 
+# ================= SAY (owner only) =================
+
+@bot.tree.command(name="say", description="Say something")
+async def say(interaction: discord.Interaction, message: str):
+    if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ You don't have permission to use this.", ephemeral=True)
+        return
+
+    await interaction.response.send_message("✅ Sent.", ephemeral=True)
+    await interaction.channel.send(message)
+
+
 # ================= RUN =================
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+    await bot.tree.sync()
 
 bot.run(TOKEN)
