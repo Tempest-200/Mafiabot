@@ -11,7 +11,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-AVAILABLE_GAMES = ["mafia", "roulette", "uno"]
+AVAILABLE_GAMES = ["mafia", "roulette", "uno", "blackjack"]
 loaded_game = None  # only one game at a time
 
 OWNER_ID = 1396540448989904926
@@ -136,6 +136,16 @@ async def help_command(ctx):
             "`.play wildraw4 <color>` — Play a Wild Draw 4 (e.g. `.play wildraw4 blue`)\n"
             "`.draw` — Draw a card from the deck\n"
             "`.hand` — Bot re-sends your current hand via DM"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🂡 Blackjack *(`.load blackjack` first)*",
+        value=(
+            "`.game` — Start a Blackjack game against the dealer\n"
+            "`.hit` — Draw a card\n"
+            "`.stand` — Hold your hand and let the dealer play"
         ),
         inline=False
     )
